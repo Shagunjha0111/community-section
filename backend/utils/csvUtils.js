@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const USERS_CSV = path.join(__dirname, '../Users.csv');
 const CONNECTIONS_CSV = path.join(__dirname, '../connections.csv');
+const REQUESTS_CSV = path.join(__dirname, '../connection_requests.csv');
 
 function readCSV(filePath) {
     const data = fs.readFileSync(filePath, 'utf-8').trim().split('\n').slice(1);
@@ -17,5 +18,6 @@ module.exports = {
     readCSV,
     writeCSV,
     USERS_CSV,
-    CONNECTIONS_CSV
+    CONNECTIONS_CSV,
+    REQUESTS_CSV
 };

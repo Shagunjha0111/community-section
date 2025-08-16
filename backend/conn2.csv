@@ -1,0 +1,7 @@
+fromUserId,toUserId,type,status,timestamp
+fromUserId,toUserId,type,status,timestamp
+fromUserId,toUserId,type,status,timestamp
+fromUserId,toUserId,type,status,timestamp
+Ananya Sharma,Priya Iyer,incoming,accepted,1755002020483
+Ananya Sharma,Priya Iyer,incoming,accepted,1755002921077
+Priya Iyer,ananya.sharma@example.com,outgoing,accepted,1755017707691
