@@ -3,6 +3,7 @@ import io from 'socket.io-client';
 import axios from 'axios';
 import Navbar from './Navbar';
 import './Chat.css';
+import { useLocation } from 'react-router-dom';
 
 const Chat = () => {
   const [currentUser, setCurrentUser] = useState(null);
@@ -15,8 +16,11 @@ const Chat = () => {
   const [typingUsers, setTypingUsers] = useState([]);
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+  const location = useLocation();
 
   const API_BASE_URL = 'http://localhost:5000/api';
+  const [wsAvailable, setWsAvailable] = useState(true);
+  const [pollingIntervalId, setPollingIntervalId] = useState(null);
 
   useEffect(() => {
     // Get current user from localStorage and normalize if needed
@@ -48,7 +52,10 @@ const Chat = () => {
 
   useEffect(() => {
     // Initialize socket connection
-    const newSocket = io('http://localhost:5000');
+    const newSocket = io('http://localhost:5000', {
+      transports: ['websocket', 'polling'],
+      withCredentials: true
+    });
     setSocket(newSocket);
 
     // Join with current user ID only after socket connects
@@ -58,7 +65,23 @@ const Chat = () => {
       }
     });
 
+    // If user becomes available after initial connect, join then as well
+    const tryJoin = () => {
+      if (newSocket.connected && currentUser && currentUser.id) {
+        newSocket.emit('join', currentUser.id);
+      }
+    };
+    tryJoin();
+
     // Socket event listeners
+    newSocket.on('connect_error', (err) => {
+      console.error('Socket connect_error:', err?.message || err);
+      setWsAvailable(false);
+    });
+    newSocket.on('error', (err) => {
+      console.error('Socket error:', err);
+      setWsAvailable(false);
+    });
     newSocket.on('new_message', (messageData) => {
       setMessages(prev => [...prev, messageData]);
     });
@@ -94,6 +117,32 @@ const Chat = () => {
       loadChatHistory();
     }
   }, [selectedConnection, currentUser]);
+
+  useEffect(() => {
+    // If navigated with ?userId=OTHER, pre-select that conversation
+    if (!currentUser || connections.length === 0) return;
+    const params = new URLSearchParams(location.search);
+    const targetUserId = params.get('userId');
+    if (!targetUserId) return;
+    const match = connections.find(c => 
+      String(c.fromUserId) === String(currentUser.id) ? String(c.toUserId) === String(targetUserId) : String(c.fromUserId) === String(targetUserId)
+    );
+    if (match) setSelectedConnection(match);
+  }, [location.search, currentUser, connections]);
+  useEffect(() => {
+    // Start polling if websockets are unavailable
+    if (!wsAvailable && selectedConnection && currentUser) {
+      if (pollingIntervalId) clearInterval(pollingIntervalId);
+      const id = setInterval(() => {
+        loadChatHistory();
+      }, 1500);
+      setPollingIntervalId(id);
+      return () => clearInterval(id);
+    } else if (wsAvailable && pollingIntervalId) {
+      clearInterval(pollingIntervalId);
+      setPollingIntervalId(null);
+    }
+  }, [wsAvailable, selectedConnection, currentUser]);
 
   useEffect(() => {
     // Auto scroll to bottom when new messages arrive
@@ -143,8 +192,18 @@ const Chat = () => {
       fromUserName: currentUser.name
     };
 
-    socket.emit('private_message', messageData);
-    setNewMessage('');
+    if (wsAvailable && socket && socket.connected) {
+      socket.emit('private_message', messageData);
+      setNewMessage('');
+    } else {
+      // Fallback to REST
+      axios.post(`${API_BASE_URL}/chat/send`, messageData)
+        .then(res => {
+          setMessages(prev => [...prev, res.data]);
+          setNewMessage('');
+        })
+        .catch(err => console.error('REST send error', err));
+    }
   };
 
   const handleTyping = () => {
@@ -300,3 +359,7 @@ const Chat = () => {
 };
 
 export default Chat;
+
+
+// Chat.js
+

@@ -6,6 +6,12 @@ const csv = require('csv-parser');
 
 const CHAT_MESSAGES_CSV = path.join(__dirname, '../chat_messages.csv');
 
+function ensureChatCsv() {
+  if (!fs.existsSync(CHAT_MESSAGES_CSV)) {
+    fs.writeFileSync(CHAT_MESSAGES_CSV, 'id,fromUserId,fromUserName,toUserId,message,timestamp\n');
+  }
+}
+
 // GET: Get chat history between two users
 router.get('/history/:userId1/:userId2', (req, res) => {
   const { userId1, userId2 } = req.params;
@@ -104,6 +110,31 @@ router.post('/mark-read', (req, res) => {
     res.json({ message: 'Messages marked as read' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to mark messages as read', details: err.message });
+  }
+});
+
+// POST: Send a message (HTTP fallback when websockets are unavailable)
+router.post('/send', (req, res) => {
+  try {
+    const { fromUserId, fromUserName, toUserId, message } = req.body || {};
+    if (!fromUserId || !toUserId || !message) {
+      return res.status(400).json({ error: 'fromUserId, toUserId and message are required' });
+    }
+
+    ensureChatCsv();
+    const msg = {
+      id: Date.now().toString(),
+      fromUserId: String(fromUserId),
+      fromUserName: fromUserName || '',
+      toUserId: String(toUserId),
+      message: String(message),
+      timestamp: new Date().toISOString()
+    };
+    const line = `${msg.id},${msg.fromUserId},${msg.fromUserName},${msg.toUserId},${msg.message},${msg.timestamp}`;
+    fs.appendFileSync(CHAT_MESSAGES_CSV, line + '\n');
+    return res.status(201).json(msg);
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to send message' });
   }
 });
 

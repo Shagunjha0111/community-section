@@ -7,7 +7,31 @@ function Matchmaking() {
     const [index, setIndex] = useState(0);
     const [connections, setConnections] = useState([]);
     const [requests, setRequests] = useState([]);
-    const currentUser = JSON.parse(localStorage.getItem('user'));
+    const [currentUser, setCurrentUser] = useState(() => {
+        const stored = localStorage.getItem('user');
+        if (!stored) return null;
+        try {
+            const parsed = JSON.parse(stored);
+            if (Array.isArray(parsed)) {
+                const normalized = {
+                    id: String(parsed[0]),
+                    name: parsed[1],
+                    email: parsed[2],
+                    password: parsed[3],
+                    phone: parsed[4],
+                    location: parsed[5],
+                    interests: parsed[6],
+                    type: parsed[7],
+                    achievements: parsed[8]
+                };
+                localStorage.setItem('user', JSON.stringify(normalized));
+                return normalized;
+            }
+            return parsed;
+        } catch (_) {
+            return null;
+        }
+    });
 
     const clientId = window.location.port === '3001' ? '2' : '1';
     const otherClientId = clientId === '1' ? '2' : '1';
@@ -27,11 +51,12 @@ function Matchmaking() {
 
                 // Add connected users
                 connectionsRes.forEach(conn => {
-                    if (conn.fromUserName === currentUser[1] || conn.toUserName === currentUser[1]) {
-                        if (conn.fromUserName === currentUser[1]) {
-                            connectedUserIds.add(conn.toUserName);
+                    if (!currentUser) return;
+                    if (conn.fromUserId === String(currentUser.id) || conn.toUserId === String(currentUser.id)) {
+                        if (conn.fromUserId === String(currentUser.id)) {
+                            connectedUserIds.add(String(conn.toUserId));
                         } else {
-                            connectedUserIds.add(conn.fromUserName);
+                            connectedUserIds.add(String(conn.fromUserId));
                         }
                     }
                 });
@@ -39,29 +64,36 @@ function Matchmaking() {
                 // Add users with pending requests (both incoming and outgoing)
                 requestsRes.forEach(req => {
                     if (req.type === 'outgoing' && req.status === 'pending') {
-                        requestedUserIds.add(req.toUserId);
+                        requestedUserIds.add(String(req.toUserId));
                     } else if (req.type === 'incoming' && req.status === 'pending') {
-                        requestedUserIds.add(req.fromUserId);
+                        requestedUserIds.add(String(req.fromUserId));
                     }
                 });
 
                 // Filter users based on interests and exclude connected/requested users
                 const filtered = usersRes.filter(u => {
+                    // Normalize user fields
+                    const candidateId = String(u.id || u.ID || u.Id || '').trim();
+                    const candidateEmail = String(u.email || u.Email || '').trim();
+                    const candidateInterests = String(u.interests || u['Interests/expertise'] || '').split(',').map(i => i.trim()).filter(Boolean);
+
                     // Exclude current user
-                    if (u.email === currentUser[2]) return false;
-                    
-                    // Exclude already connected users
-                    if (connectedUserIds.has(u.name)) return false;
-                    
-                    // Exclude users with pending requests
-                    if (requestedUserIds.has(u.name) || requestedUserIds.has(u.id)) return false;
-                    
-                    // Filter by interests
-                    const userInterests = currentUser[6]?.split(',').map(i => i.trim()) || [];
-                    const profileInterests = (u.interests || '').split(',').map(i => i.trim());
-                    
+                    if (currentUser && (candidateEmail && candidateEmail === String(currentUser.email)) ) return false;
+                    if (currentUser && (candidateId && candidateId === String(currentUser.id)) ) return false;
+
+                    // Exclude already connected users (by id)
+                    if (candidateId && connectedUserIds.has(candidateId)) return false;
+
+                    // Exclude users with pending requests (by id)
+                    if (candidateId && requestedUserIds.has(candidateId)) return false;
+
+                    // If no interests set for current user, don't block matching
+                    const userInterests = String(currentUser?.interests || '').split(',').map(i => i.trim()).filter(Boolean);
+                    if (userInterests.length === 0 || candidateInterests.length === 0) return true;
+
+                    // Filter by interests (case-insensitive partial match)
                     return userInterests.some(interest => 
-                        profileInterests.some(profileInterest => 
+                        candidateInterests.some(profileInterest => 
                             profileInterest.toLowerCase().includes(interest.toLowerCase()) ||
                             interest.toLowerCase().includes(profileInterest.toLowerCase())
                         )
@@ -82,11 +114,14 @@ function Matchmaking() {
 
     const handleConnect = async () => {
         try {
+            const target = users[index];
+            const fromUserId = String(currentUser.id);
+            const toUserId = String(target.id || target.ID || target.Id || target.name);
             await axios.post('http://localhost:5000/api/conn/send', {
                 fromClient: clientId,
                 toClient: otherClientId,
-                fromUserId: String(currentUser[1] || currentUser[0]),
-                toUserId: String(users[index].name || users[index].id)
+                fromUserId,
+                toUserId
             });
             alert('Request sent');
             

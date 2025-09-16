@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import './Connections.css';
 
 function Connections() {
@@ -7,6 +8,7 @@ function Connections() {
   const [users, setUsers] = useState([]);
   const [activeTab, setActiveTab] = useState('incoming');
   const currentUser = JSON.parse(localStorage.getItem('user'));
+  const navigate = useNavigate();
 
   const clientId = window.location.port === '3001' ? '2' : '1';
   const otherClientId = clientId === '1' ? '2' : '1';
@@ -65,6 +67,15 @@ function Connections() {
   };
 
   const idToName = (id) => users.find(u => String(u.id) === String(id) || u.name === id)?.name || id;
+
+  const getCurrentUserId = () => {
+    if (!currentUser) return '';
+    return Array.isArray(currentUser) ? String(currentUser[0]) : String(currentUser.id);
+  };
+
+  const startChatWith = (otherUserId) => {
+    navigate(`/chat?userId=${encodeURIComponent(String(otherUserId))}`);
+  };
 
   const outgoingPending = requests.filter(r => r.type === 'outgoing' && r.status === 'pending');
   const incomingPending = requests.filter(r => r.type === 'incoming' && r.status === 'pending');
@@ -139,6 +150,14 @@ function Connections() {
                   </div>
                   <div className="connection-actions">
                     <span className="connection-status">Connected</span>
+                    <button 
+                      className="btn navbtn"
+                      onClick={() => startChatWith(
+                        String(getCurrentUserId()) === String(conn.fromUserId) ? conn.toUserId : conn.fromUserId
+                      )}
+                    >
+                      Chat
+                    </button>
                     <button 
                       className="remove-btn" 
                       onClick={() => removeConnection(conn.fromUserId, conn.toUserId, conn.fromUserName, conn.toUserName)}
