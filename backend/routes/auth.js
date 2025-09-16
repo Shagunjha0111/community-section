@@ -18,7 +18,20 @@ router.post('/login', (req, res) => {
     const { email, password } = req.body;
     const users = readCSV(USERS_CSV);
     const found = users.find(user => user[2] === email && user[3] === password);
-    if (found) res.json({ success: true, user: found });
+    if (found) {
+        const userObj = {
+            id: String(found[0]),
+            name: found[1],
+            email: found[2],
+            password: found[3],
+            phone: found[4],
+            location: found[5],
+            interests: found[6],
+            type: found[7],
+            achievements: found[8]
+        };
+        res.json({ success: true, user: userObj });
+    }
     else res.status(401).json({ success: false, message: 'Invalid credentials' });
 });
 

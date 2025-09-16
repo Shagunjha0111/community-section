@@ -8,6 +8,7 @@ import Dashboard from './pages/Dashboard';
 import Matchmaking from './components/Matchmaking';
 import Connections from './components/Connections';
 import Profile from './components/Profile';
+import Chat from './components/Chat';
 
 function App() {
     return (
@@ -18,6 +19,7 @@ function App() {
             <Route path='/matchmaking' element={<Matchmaking />} />
             <Route path='/connections' element={<Connections />} />
             <Route path='/profile' element={<Profile />} />
+            <Route path='/chat' element={<Chat />} />
         </Routes>
     );
 }
